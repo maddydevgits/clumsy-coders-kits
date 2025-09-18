@@ -2,7 +2,7 @@
 
 # ThingSpeak Configuration
 # Replace these with your actual ThingSpeak channel details
-THINGSPEAK_CHANNEL_ID = "YOUR_CHANNEL_ID"  # Your ThingSpeak channel ID
+THINGSPEAK_CHANNEL_ID = "3080065"  # Your ThingSpeak channel ID
 THINGSPEAK_API_KEY = "YOUR_API_KEY"        # Your ThingSpeak API key
 
 # Camera Configuration
