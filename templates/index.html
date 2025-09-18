@@ -86,12 +86,30 @@
                 </div>
             </div>
             <div class="relative bg-gray-200 rounded-lg overflow-hidden">
+                <!-- Browser Camera Video Element -->
+                <video id="browserCamera" autoplay muted playsinline 
+                       class="w-full max-w-4xl mx-auto block rounded-lg shadow-md hidden">
+                </video>
+                <!-- Server Camera Feed (fallback) -->
                 <img id="cameraFeed" src="/video_feed" alt="Camera Feed" 
                      class="w-full max-w-4xl mx-auto block rounded-lg shadow-md"
                      onerror="handleCameraError()"
                      onload="handleCameraLoad()">
                 <div class="absolute top-4 left-4 bg-black bg-opacity-75 text-white px-3 py-1 rounded text-sm font-medium">
                     People Detected: <span id="livePeopleCount">0</span>
+                </div>
+                <!-- Camera Controls -->
+                <div class="absolute top-4 right-4">
+                    <button id="startCamera" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-medium shadow-lg">
+                        📷 Start Camera
+                    </button>
+                    <button id="stopCamera" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium hidden shadow-lg">
+                        ⏹️ Stop Camera
+                    </button>
+                </div>
+                <!-- Camera Status Indicator -->
+                <div class="absolute bottom-4 right-4 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs">
+                    <span id="cameraStatus">Ready</span>
                 </div>
                 <div id="cameraError" class="hidden absolute inset-0 flex items-center justify-center bg-gray-200">
                     <div class="text-center text-gray-600">
@@ -105,7 +123,7 @@
                 </div>
             </div>
             <div class="mt-4 text-sm text-gray-500 text-center">
-                <p>Detection: <span id="feedDetectionMethods">YOLO</span> | Resolution: 640x480 | Quality: High</p>
+                <p>Detection: <span id="feedDetectionMethods">YOLO</span> | Source: <span id="cameraSource">Browser Camera</span> | Quality: High</p>
                 <p>Stability: <span id="feedConfidence" class="font-semibold">MEDIUM</span> | 
                    History: <span id="detectionHistory">[0,0,0]</span></p>
                 <p>Avg Confidence: <span id="avgConfidence" class="font-semibold">0.00</span> | 
@@ -230,6 +248,10 @@
                     const model = data.model || 'YOLO';
                     document.getElementById('detectionMethods').textContent = model;
                     document.getElementById('feedDetectionMethods').textContent = model;
+                    
+                // Update camera source based on configuration
+                const cameraType = data.camera_type || 'Browser Camera';
+                document.getElementById('cameraSource').textContent = cameraType;
                     
                     // Update confidence with color coding
                     const confidence = data.confidence;
@@ -406,6 +428,177 @@
         updateDetectionDetails();
         updateEmailStatus();
         
+        // Browser Camera Functions
+        let browserCamera = null;
+        let canvas = null;
+        let ctx = null;
+        let processingInterval = null;
+
+        function updateCameraStatus(status) {
+            const statusElement = document.getElementById('cameraStatus');
+            if (statusElement) {
+                statusElement.textContent = status;
+            }
+            console.log('Camera status:', status);
+        }
+
+        async function startBrowserCamera() {
+            console.log('Starting browser camera...');
+            updateCameraStatus('Requesting access...');
+            
+            try {
+                // Check if getUserMedia is supported
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('getUserMedia is not supported in this browser');
+                }
+                
+                console.log('Requesting camera access...');
+                updateCameraStatus('Requesting camera...');
+                
+                // Request camera access
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }
+                });
+                
+                console.log('Camera access granted!');
+                updateCameraStatus('Camera active');
+
+                browserCamera = document.getElementById('browserCamera');
+                browserCamera.srcObject = stream;
+                browserCamera.style.display = 'block';
+                
+                // Hide server camera feed
+                document.getElementById('cameraFeed').style.display = 'none';
+                
+                // Create canvas for frame capture
+                canvas = document.createElement('canvas');
+                ctx = canvas.getContext('2d');
+                canvas.width = 640;
+                canvas.height = 480;
+
+                // Update button states
+                document.getElementById('startCamera').classList.add('hidden');
+                document.getElementById('stopCamera').classList.remove('hidden');
+
+                // Start processing frames
+                startFrameProcessing();
+
+                console.log('Browser camera started successfully');
+                updateCameraStatus('Processing frames...');
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                updateCameraStatus('Camera error');
+                
+                let errorMessage = 'Could not access camera. ';
+                if (error.name === 'NotAllowedError') {
+                    errorMessage += 'Please allow camera access and try again.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage += 'No camera found on this device.';
+                } else if (error.name === 'NotSupportedError') {
+                    errorMessage += 'Camera not supported in this browser.';
+                } else {
+                    errorMessage += 'Please check permissions and try again.';
+                }
+                
+                alert(errorMessage);
+            }
+        }
+
+        function stopBrowserCamera() {
+            console.log('Stopping browser camera...');
+            updateCameraStatus('Stopping...');
+            
+            if (browserCamera && browserCamera.srcObject) {
+                // Stop all tracks
+                browserCamera.srcObject.getTracks().forEach(track => track.stop());
+                browserCamera.srcObject = null;
+                browserCamera.style.display = 'none';
+                
+                // Show server camera feed
+                document.getElementById('cameraFeed').style.display = 'block';
+                
+                // Stop frame processing
+                if (processingInterval) {
+                    clearInterval(processingInterval);
+                    processingInterval = null;
+                }
+
+                // Update button states
+                document.getElementById('startCamera').classList.remove('hidden');
+                document.getElementById('stopCamera').classList.add('hidden');
+
+                console.log('Browser camera stopped');
+                updateCameraStatus('Ready');
+            }
+        }
+
+        function startFrameProcessing() {
+            processingInterval = setInterval(async () => {
+                if (browserCamera && canvas && ctx) {
+                    try {
+                        // Draw current frame to canvas
+                        ctx.drawImage(browserCamera, 0, 0, canvas.width, canvas.height);
+                        
+                        // Convert canvas to blob
+                        canvas.toBlob(async (blob) => {
+                            if (blob) {
+                                // Send frame to server for processing
+                                const formData = new FormData();
+                                formData.append('frame', blob, 'frame.jpg');
+                                
+                                try {
+                                    const response = await fetch('/api/process_frame', {
+                                        method: 'POST',
+                                        body: formData
+                                    });
+                                    
+                                    if (response.ok) {
+                                        const data = await response.json();
+                                        // Update UI with detection results
+                                        document.getElementById('livePeopleCount').textContent = data.people_count;
+                                        document.getElementById('peopleCount').textContent = data.people_count;
+                                        document.getElementById('currentPeopleCount').textContent = data.people_count;
+                                    }
+                                } catch (error) {
+                                    console.error('Error processing frame:', error);
+                                }
+                            }
+                        }, 'image/jpeg', 0.8);
+                    } catch (error) {
+                        console.error('Error capturing frame:', error);
+                    }
+                }
+            }, 1000); // Process every second
+        }
+
+        // Add camera button event listeners when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            const startBtn = document.getElementById('startCamera');
+            const stopBtn = document.getElementById('stopCamera');
+            
+            if (startBtn) {
+                startBtn.addEventListener('click', function(e) {
+                    console.log('Start camera button clicked!');
+                    e.preventDefault();
+                    startBrowserCamera();
+                });
+                console.log('Start camera button event listener added');
+            } else {
+                console.error('Start camera button not found');
+            }
+            
+            if (stopBtn) {
+                stopBtn.addEventListener('click', stopBrowserCamera);
+                console.log('Stop camera button event listener added');
+            } else {
+                console.error('Stop camera button not found');
+            }
+        });
+
         // Check if Tailwind CSS loaded properly
         if (typeof tailwind !== 'undefined') {
             console.log('Tailwind CSS loaded successfully');
