@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, Response, request
+from flask import Flask, render_template, jsonify, Response
 import requests
 import cv2
 import numpy as np
@@ -39,104 +39,25 @@ def init_camera():
     """Initialize camera and YOLO model"""
     global camera, yolo_model
     
-    # Initialize camera based on configuration
-    if CAMERA_TYPE == "browser":
-        print("Using browser camera via WebRTC - no server camera needed")
-        camera = None  # No server-side camera for browser mode
-        
-    elif CAMERA_TYPE == "local":
-        print(f"Initializing local camera: {CAMERA_INDEX}")
-        camera = cv2.VideoCapture(CAMERA_INDEX)
-        
-    elif CAMERA_TYPE == "ip_camera":
-        print(f"Initializing IP camera: {IP_CAMERA_URL}")
-        camera = cv2.VideoCapture(IP_CAMERA_URL)
-        
-        # If authentication is required
-        if IP_CAMERA_USERNAME and IP_CAMERA_PASSWORD:
-            # Construct URL with authentication
-            auth_url = IP_CAMERA_URL.replace("http://", f"http://{IP_CAMERA_USERNAME}:{IP_CAMERA_PASSWORD}@")
-            camera = cv2.VideoCapture(auth_url)
-            print("Using authenticated IP camera connection")
-            
-    elif CAMERA_TYPE == "rtsp":
-        print(f"Initializing RTSP stream: {RTSP_URL}")
-        camera = cv2.VideoCapture(RTSP_URL)
-        
-    elif CAMERA_TYPE == "web_url":
-        print(f"Initializing web camera: {WEB_CAMERA_URL}")
-        camera = cv2.VideoCapture(WEB_CAMERA_URL)
-        
-    else:
-        print(f"Unknown camera type: {CAMERA_TYPE}, falling back to local camera")
-        camera = cv2.VideoCapture(CAMERA_INDEX)
-    
-    # Skip camera validation for browser mode
-    if CAMERA_TYPE == "browser":
-        print("Browser camera mode - camera will be accessed via WebRTC")
-        # Initialize YOLO model for browser mode
-        try:
-            print(f"Loading YOLO model: {YOLO_MODEL}")
-            yolo_model = YOLO(YOLO_MODEL)
-            print("YOLO model loaded successfully!")
-            return True
-        except Exception as e:
-            print(f"Error loading YOLO model: {e}")
-            return False
-    
-    # Validate camera for other modes
-    if camera is None or not camera.isOpened():
+    # Initialize camera
+    camera = cv2.VideoCapture(CAMERA_INDEX)
+    if not camera.isOpened():
         print("Error: Could not open camera")
-        if CAMERA_TYPE == "ip_camera":
-            print(f"Failed to connect to IP camera: {IP_CAMERA_URL}")
-            print("Please check:")
-            print("1. IP camera URL is correct")
-            print("2. IP camera app is running on your phone")
-            print("3. Phone and computer are on the same network")
-            print("4. Firewall allows the connection")
-        elif CAMERA_TYPE == "rtsp":
-            print(f"Failed to connect to RTSP stream: {RTSP_URL}")
-            print("Please check:")
-            print("1. RTSP URL is correct")
-            print("2. Camera is online and accessible")
-            print("3. Credentials are correct")
-        elif CAMERA_TYPE == "web_url":
-            print(f"Failed to connect to web camera: {WEB_CAMERA_URL}")
-            print("Please check:")
-            print("1. Web camera URL is correct")
-            print("2. Service is online")
-            print("3. API key is valid")
-        else:
-            print(f"Failed to connect to local camera: {CAMERA_INDEX}")
-            print("Please check:")
-            print("1. Camera is connected")
-            print("2. Camera index is correct")
-            print("3. Camera is not being used by another application")
         return False
     
     # Set camera properties for better detection and quality
-    if CAMERA_TYPE == "local":  # Only set properties for local cameras
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_FRAME_WIDTH)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_FRAME_HEIGHT)
-        camera.set(cv2.CAP_PROP_FPS, 30)
-        camera.set(cv2.CAP_PROP_BRIGHTNESS, 0.5)  # Adjust brightness for better text visibility
-        camera.set(cv2.CAP_PROP_CONTRAST, 0.5)     # Adjust contrast for better text visibility
+    camera.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_FRAME_WIDTH)
+    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_FRAME_HEIGHT)
+    camera.set(cv2.CAP_PROP_FPS, 30)
+    camera.set(cv2.CAP_PROP_BRIGHTNESS, 0.5)  # Adjust brightness for better text visibility
+    camera.set(cv2.CAP_PROP_CONTRAST, 0.5)     # Adjust contrast for better text visibility
     
     # Initialize YOLO model
     try:
         print(f"Loading YOLO model: {YOLO_MODEL}")
         yolo_model = YOLO(YOLO_MODEL)
         print("YOLO model loaded successfully!")
-        
-        # Test camera connection
-        ret, frame = camera.read()
-        if ret:
-            print(f"Camera test successful! Frame size: {frame.shape[1]}x{frame.shape[0]}")
-            return True
-        else:
-            print("Camera test failed - no frames received")
-            return False
-            
+        return True
     except Exception as e:
         print(f"Error loading YOLO model: {e}")
         print("Falling back to Haar cascades...")
@@ -373,26 +294,6 @@ def get_thingspeak_data():
 def generate_frames():
     """Generate video frames for streaming with YOLO detection"""
     global camera, yolo_model
-    
-    # For browser mode, we don't generate frames from server camera
-    if CAMERA_TYPE == "browser":
-        while True:
-            # Create a simple placeholder frame
-            frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.putText(frame, "Browser Camera Mode", (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            cv2.putText(frame, "Camera will be accessed via WebRTC", (50, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
-            
-            # Encode frame
-            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, VIDEO_JPEG_QUALITY])
-            frame_bytes = buffer.tobytes()
-            
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            
-            time.sleep(1/30)  # 30 FPS
-        return
-    
-    # For other camera modes, use server camera
     while True:
         if camera is None:
             break
@@ -490,12 +391,6 @@ def api_people_count():
 @app.route('/video_feed')
 def video_feed():
     """Video streaming route"""
-    # For browser mode, we don't need server camera
-    if CAMERA_TYPE == "browser":
-        return Response(generate_frames(),
-                       mimetype='multipart/x-mixed-replace; boundary=frame')
-    
-    # For other camera modes, check if camera is initialized
     if camera is None:
         return "Camera not initialized", 500
     return Response(generate_frames(),
@@ -523,62 +418,11 @@ def api_detection_details():
         'confidence': current_detection_data['confidence'],
         'detection_history': detection_history[-10:],  # Last 10 detections
         'model': current_detection_data['model'],
-        'camera_type': CAMERA_TYPE.title(),
         'detections': current_detection_data['detections'],
         'detection_count': len(current_detection_data['detections']),
         'yolo_enabled': yolo_model is not None,
         'avg_confidence': np.mean([d['confidence'] for d in current_detection_data['detections']]) if current_detection_data['detections'] else 0
     })
-
-@app.route('/api/process_frame', methods=['POST'])
-def api_process_frame():
-    """API endpoint to process frame from browser camera"""
-    global current_detection_data, yolo_model
-    
-    try:
-        # Get frame data from request
-        if 'frame' not in request.files:
-            return jsonify({'error': 'No frame data provided'}), 400
-        
-        frame_file = request.files['frame']
-        if frame_file.filename == '':
-            return jsonify({'error': 'No frame file selected'}), 400
-        
-        # Read frame data
-        frame_bytes = frame_file.read()
-        nparr = np.frombuffer(frame_bytes, np.uint8)
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if frame is None:
-            return jsonify({'error': 'Could not decode frame'}), 400
-        
-        # Process frame with YOLO
-        if yolo_model is not None:
-            current_count, detections = detect_people_yolo(frame)
-            
-            # Update global detection data
-            current_detection_data = {
-                'people_count': current_count,
-                'confidence': np.mean([d['confidence'] for d in detections]) if detections else 0.0,
-                'detections': detections,
-                'model': 'YOLO',
-                'timestamp': datetime.now().strftime('%H:%M:%S')
-            }
-            
-            # Check for alerts
-            check_alert_conditions(current_count)
-            
-            return jsonify({
-                'people_count': current_count,
-                'detections': detections,
-                'confidence': current_detection_data['confidence'],
-                'timestamp': current_detection_data['timestamp']
-            })
-        else:
-            return jsonify({'error': 'YOLO model not loaded'}), 500
-            
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/email_status')
 def api_email_status():

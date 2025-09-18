@@ -8,33 +8,6 @@ THINGSPEAK_API_KEY = "YOUR_API_KEY"        # Your ThingSpeak API key
 # Camera Configuration
 CAMERA_INDEX = 0  # Change this if you have multiple cameras (0, 1, 2, etc.)
 
-# Camera Configuration Options
-CAMERA_TYPE = "browser"  # Options: "browser", "local", "ip_camera", "rtsp", "web_url"
-
-# Browser Camera (Recommended for cloud deployment)
-USE_BROWSER_CAMERA = True  # Use browser's camera via WebRTC
-BROWSER_CAMERA_WIDTH = 640  # Browser camera width
-BROWSER_CAMERA_HEIGHT = 480  # Browser camera height
-BROWSER_CAMERA_FPS = 30  # Browser camera FPS
-
-# Local Camera (for local development)
-USE_LOCAL_CAMERA = False  # Use local webcam on server
-
-# IP Camera Configuration (for local deployment)
-USE_IP_CAMERA = False  # Set to True to use IP camera, False for local webcam
-IP_CAMERA_URL = "http://192.168.1.100:8080/video"  # Replace with your IP camera URL
-IP_CAMERA_USERNAME = ""  # Leave empty if no authentication
-IP_CAMERA_PASSWORD = ""  # Leave empty if no authentication
-
-# RTSP Stream Configuration (for cloud deployment)
-RTSP_URL = "rtsp://username:password@your-camera-ip:554/stream"  # RTSP stream URL
-RTSP_USERNAME = ""  # RTSP username
-RTSP_PASSWORD = ""  # RTSP password
-
-# Web URL Configuration (for cloud deployment)
-WEB_CAMERA_URL = "https://your-webcam-service.com/video"  # Web-based camera service
-WEB_CAMERA_API_KEY = ""  # API key if required
-
 # YOLO Detection Configuration
 YOLO_MODEL = "yolov8n.pt"  # YOLOv8 nano model (fastest)
 YOLO_CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence for detection
