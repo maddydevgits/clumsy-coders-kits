@@ -45,12 +45,26 @@ def init_camera():
         print("Error: Could not open camera")
         return False
     
-    # Set camera properties for better detection and quality
-    camera.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_FRAME_WIDTH)
-    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_FRAME_HEIGHT)
-    camera.set(cv2.CAP_PROP_FPS, 30)
-    camera.set(cv2.CAP_PROP_BRIGHTNESS, 0.5)  # Adjust brightness for better text visibility
-    camera.set(cv2.CAP_PROP_CONTRAST, 0.5)     # Adjust contrast for better text visibility
+    # Set camera properties for better detection and quality (optional)
+    if MODIFY_CAMERA_SETTINGS:
+        try:
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_FRAME_WIDTH)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_FRAME_HEIGHT)
+            print(f"Camera resolution set to {VIDEO_FRAME_WIDTH}x{VIDEO_FRAME_HEIGHT}")
+        except Exception as e:
+            print(f"Could not set camera resolution: {e}")
+        
+        try:
+            camera.set(cv2.CAP_PROP_FPS, 30)
+            print("Camera FPS set to 30")
+        except Exception as e:
+            print(f"Could not set camera FPS: {e}")
+        
+        # Skip brightness/contrast adjustments to avoid camera conflicts
+        # camera.set(cv2.CAP_PROP_BRIGHTNESS, 0.5)
+        # camera.set(cv2.CAP_PROP_CONTRAST, 0.5)
+    else:
+        print("Camera settings modification disabled - using default camera properties")
     
     # Initialize YOLO model
     try:
@@ -130,15 +144,21 @@ def detect_people_yolo(frame):
         'model': 'YOLO'
     })
     
-    # Check alert conditions every 30 frames (about once per second)
-    if len(detection_history) % 30 == 0:
+    # Check alert conditions every 10 frames (about 3 times per second) for more responsive alerts
+    if len(detection_history) % 10 == 0:
         avg_confidence = np.mean([d['confidence'] for d in detections]) if detections else 0
         print(f"YOLO Detection: {smoothed_count} people, {len(detections)} detections, avg confidence: {avg_confidence:.2f}, stability: {confidence}")
+        
+        # Debug alert conditions
+        print(f"Alert Debug - Current: {smoothed_count}, Threshold: {PEOPLE_COUNT_THRESHOLD}, Previous: {previous_people_count}")
+        print(f"Alert Settings - EMAIL_ENABLED: {EMAIL_ENABLED}, ALERT_ON_THRESHOLD: {ALERT_ON_THRESHOLD}, ALERT_ONLY_THRESHOLD_CROSS: {ALERT_ONLY_THRESHOLD_CROSS}")
         
         # Check and send email alerts
         alerts_sent = check_alert_conditions(smoothed_count)
         if alerts_sent:
-            print(f"Email alerts sent: {', '.join(alerts_sent)}")
+            print(f"✅ Email alerts sent: {', '.join(alerts_sent)}")
+        else:
+            print("❌ No alerts sent")
     
     return smoothed_count, detections
 
@@ -153,9 +173,13 @@ def send_email_alert(subject, message, image_data=None):
     # Check cooldown period
     if last_alert_time:
         time_since_last = datetime.now() - last_alert_time
+        print(f"Cooldown check: {time_since_last} < {timedelta(minutes=ALERT_COOLDOWN_MINUTES)} = {time_since_last < timedelta(minutes=ALERT_COOLDOWN_MINUTES)}")
         if time_since_last < timedelta(minutes=ALERT_COOLDOWN_MINUTES):
-            print(f"Email alert skipped - cooldown period active ({ALERT_COOLDOWN_MINUTES} minutes)")
+            remaining_time = timedelta(minutes=ALERT_COOLDOWN_MINUTES) - time_since_last
+            print(f"❌ Email alert skipped - cooldown period active ({remaining_time} remaining)")
             return False
+    else:
+        print("No previous alert time - cooldown check passed")
     
     try:
         # Create message
@@ -194,7 +218,7 @@ This is an automated alert from the Nexora monitoring system.
         server.sendmail(EMAIL_USERNAME, EMAIL_RECIPIENTS, text)
         server.quit()
         
-        # Update last alert time
+        # Only update last alert time if email was sent successfully
         last_alert_time = datetime.now()
         
         # Log alert
@@ -204,7 +228,7 @@ This is an automated alert from the Nexora monitoring system.
             'recipients': len(EMAIL_RECIPIENTS)
         })
         
-        print(f"Email alert sent successfully: {subject}")
+        print(f"✅ Email alert sent successfully: {subject}")
         return True
         
     except Exception as e:
@@ -247,12 +271,17 @@ def check_alert_conditions(current_count):
                 threshold_crossed_up = False  # Reset upward flag
     
     else:
-        # Legacy behavior - alert on every threshold exceed
+        # Alert whenever people count exceeds threshold
+        print(f"Checking continuous threshold alert: {current_count} > {PEOPLE_COUNT_THRESHOLD} = {current_count > PEOPLE_COUNT_THRESHOLD}")
         if ALERT_ON_THRESHOLD and current_count > PEOPLE_COUNT_THRESHOLD:
+            print(f"🚨 Threshold exceeded! Attempting to send alert...")
             subject = f"High Occupancy Alert - {current_count} People Detected"
-            message = f"The room occupancy has exceeded the threshold of {PEOPLE_COUNT_THRESHOLD} people.\n\nCurrent count: {current_count} people\nThreshold: {PEOPLE_COUNT_THRESHOLD} people"
+            message = f"The room occupancy has exceeded the threshold!\n\nCurrent count: {current_count} people\nThreshold: {PEOPLE_COUNT_THRESHOLD} people\n\nAlert: Room is over capacity."
             if send_email_alert(subject, message):
-                alerts_sent.append("threshold")
+                alerts_sent.append("threshold_exceeded")
+                print(f"✅ Threshold alert sent successfully!")
+            else:
+                print(f"❌ Failed to send threshold alert")
         
         # Check entry alert
         if ALERT_ON_ENTRY and current_count > previous_people_count:
@@ -461,6 +490,33 @@ def api_send_test_email():
     return jsonify({
         'success': success,
         'message': 'Test email sent successfully' if success else 'Failed to send test email'
+    })
+
+@app.route('/api/reset_alert_cooldown', methods=['POST'])
+def reset_alert_cooldown():
+    """Reset the alert cooldown for testing purposes"""
+    global last_alert_time
+    last_alert_time = None
+    print("Alert cooldown reset for testing")
+    return jsonify({
+        'success': True,
+        'message': 'Alert cooldown reset successfully'
+    })
+
+@app.route('/api/trigger_threshold_alert', methods=['POST'])
+def trigger_threshold_alert():
+    """Manually trigger a threshold alert for testing"""
+    current_count = current_detection_data.get('people_count', 0)
+    subject = f"Manual Threshold Alert - {current_count} People Detected"
+    message = f"Manual threshold alert triggered!\n\nCurrent count: {current_count} people\nThreshold: {PEOPLE_COUNT_THRESHOLD} people\n\nThis is a test alert."
+    
+    success = send_email_alert(subject, message)
+    
+    return jsonify({
+        'success': success,
+        'message': 'Manual threshold alert sent successfully' if success else 'Failed to send manual threshold alert',
+        'current_count': current_count,
+        'threshold': PEOPLE_COUNT_THRESHOLD
     })
 
 if __name__ == '__main__':

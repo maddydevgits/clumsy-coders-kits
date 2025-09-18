@@ -3,10 +3,11 @@
 # ThingSpeak Configuration
 # Replace these with your actual ThingSpeak channel details
 THINGSPEAK_CHANNEL_ID = "3080065"  # Your ThingSpeak channel ID
-THINGSPEAK_API_KEY = "YOUR_API_KEY"        # Your ThingSpeak API key
+THINGSPEAK_API_KEY = "8WI60PGWXLGAP1Q2"        # Your ThingSpeak API key
 
 # Camera Configuration
 CAMERA_INDEX = 0  # Change this if you have multiple cameras (0, 1, 2, etc.)
+MODIFY_CAMERA_SETTINGS = False  # Set to False to avoid modifying camera properties
 
 # YOLO Detection Configuration
 YOLO_MODEL = "yolov8n.pt"  # YOLOv8 nano model (fastest)
@@ -45,20 +46,22 @@ FLASK_DEBUG = True
 EMAIL_ENABLED = True
 EMAIL_SMTP_SERVER = 'smtp.gmail.com'
 EMAIL_SMTP_PORT = 587
-EMAIL_USERNAME = 'YOUR_EMAIL@gmail.com'  # Your Gmail address
-EMAIL_PASSWORD = 'YOUR_APP_PASSWORD'     # Gmail App Password (not regular password)
+EMAIL_USERNAME = '24jr1a05u5p@gmail.com'  # Your Gmail address
+EMAIL_PASSWORD = 'epfu hbih pusn wzbn'     # Gmail App Password (not regular password)
 EMAIL_FROM_NAME = 'Nexora Alert System'
 
 # Email Recipients
 EMAIL_RECIPIENTS = [
-    'admin@example.com',  # Add recipient emails here
-    'manager@example.com'
+    'tejaswinipratthi@gmail.com',  # Add recipient emails here
+    'rakshithaupputuri@gmail.com',
+    'pavani23battini@gmail.com',
+    'shaiknaziatasneem786@gmail.com'
 ]
 
 # Alert Thresholds
-PEOPLE_COUNT_THRESHOLD = 5  # Send alert when people count exceeds this
-ALERT_COOLDOWN_MINUTES = 5  # Minimum time between alerts (in minutes)
+PEOPLE_COUNT_THRESHOLD = 2  # Send alert when people count exceeds this
+ALERT_COOLDOWN_MINUTES = 1  # Minimum time between alerts (in minutes) - reduced for testing
 ALERT_ON_ENTRY = False      # Send alert when someone enters
 ALERT_ON_EXIT = False       # Send alert when someone exits
 ALERT_ON_THRESHOLD = True   # Send alert when threshold is exceeded
-ALERT_ONLY_THRESHOLD_CROSS = True  # Only alert when crossing threshold (up or down)
+ALERT_ONLY_THRESHOLD_CROSS = False  # Alert whenever count > threshold (not just crossings)
