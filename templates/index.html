@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexora by Clumsy Coders</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'iot-blue': '#3B82F6',
+                        'iot-green': '#10B981',
+                        'iot-red': '#EF4444',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Nexora by Clumsy Coders</h1>
+            <p class="text-gray-600">Real-time entry count and people detection</p>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- IoT Entry Count Card -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-semibold text-gray-800">IoT Entry Count</h2>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 bg-iot-green rounded-full animate-pulse"></div>
+                        <span class="text-sm text-gray-600">Live</span>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <div class="text-6xl font-bold text-iot-blue mb-4" id="entryCount">0</div>
+                    <p class="text-gray-600 mb-4">Total people entered</p>
+                    <button onclick="refreshEntryCount()" class="bg-iot-blue text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                        Refresh Count
+                    </button>
+                </div>
+                
+                <div class="mt-4 text-sm text-gray-500">
+                    <p>Data source: ThingSpeak Channel</p>
+                    <p>Last updated: <span id="lastUpdated">Never</span></p>
+                </div>
+            </div>
+
+            <!-- Camera People Count Card -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-semibold text-gray-800">Current People Count</h2>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 bg-iot-green rounded-full animate-pulse"></div>
+                        <span class="text-sm text-gray-600">Live Camera</span>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <div class="text-6xl font-bold text-iot-green mb-4" id="peopleCount">0</div>
+                    <p class="text-gray-600 mb-4">People currently in room</p>
+                </div>
+                
+            <div class="mt-4 text-sm text-gray-500">
+                <p>Detection: <span id="detectionMethods">YOLO</span></p>
+                <p>Stability: <span id="detectionConfidence" class="font-semibold">MEDIUM</span></p>
+                <p>Status: <span id="cameraStatus">Active</span></p>
+            </div>
+            </div>
+        </div>
+
+        <!-- Camera Feed Section -->
+        <div class="mt-8 bg-white rounded-lg shadow-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-semibold text-gray-800">Live Camera Feed</h2>
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 bg-iot-green rounded-full animate-pulse" id="cameraIndicator"></div>
+                    <span class="text-sm text-gray-600" id="cameraStatusText">Camera Active</span>
+                </div>
+            </div>
+            <div class="relative bg-gray-200 rounded-lg overflow-hidden">
+                <img id="cameraFeed" src="/video_feed" alt="Camera Feed" 
+                     class="w-full max-w-4xl mx-auto block rounded-lg shadow-md"
+                     onerror="handleCameraError()"
+                     onload="handleCameraLoad()">
+                <div class="absolute top-4 left-4 bg-black bg-opacity-75 text-white px-3 py-1 rounded text-sm font-medium">
+                    People Detected: <span id="livePeopleCount">0</span>
+                </div>
+                <div id="cameraError" class="hidden absolute inset-0 flex items-center justify-center bg-gray-200">
+                    <div class="text-center text-gray-600">
+                        <div class="text-6xl mb-4">📷</div>
+                        <h3 class="text-xl font-semibold mb-2">Camera Not Available</h3>
+                        <p class="text-sm">Please check your camera connection</p>
+                        <button onclick="retryCamera()" class="mt-4 bg-iot-blue text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                            Retry Camera
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 text-sm text-gray-500 text-center">
+                <p>Detection: <span id="feedDetectionMethods">YOLO</span> | Resolution: 640x480 | Quality: High</p>
+                <p>Stability: <span id="feedConfidence" class="font-semibold">MEDIUM</span> | 
+                   History: <span id="detectionHistory">[0,0,0]</span></p>
+                <p>Avg Confidence: <span id="avgConfidence" class="font-semibold">0.00</span> | 
+                   Detections: <span id="detectionCount">0</span></p>
+            </div>
+        </div>
+
+        <!-- Statistics Section -->
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                <div class="text-3xl font-bold text-iot-blue mb-2" id="totalEntries">0</div>
+                <p class="text-gray-600">Total Entries</p>
+            </div>
+            <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                <div class="text-3xl font-bold text-iot-green mb-2" id="currentOccupancy">0</div>
+                <p class="text-gray-600">Current Occupancy</p>
+            </div>
+            <div class="bg-white rounded-lg shadow-lg p-6 text-center">
+                <div class="text-3xl font-bold text-iot-red mb-2" id="occupancyRate">0%</div>
+                <p class="text-gray-600">Occupancy Rate</p>
+            </div>
+        </div>
+
+        <!-- Email Alert Section -->
+        <div class="mt-8 bg-white rounded-lg shadow-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-semibold text-gray-800">Email Alert System</h2>
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 bg-iot-green rounded-full animate-pulse" id="emailIndicator"></div>
+                    <span class="text-sm text-gray-600" id="emailStatus">Active</span>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Alert Settings -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Alert Settings</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span>Threshold:</span>
+                            <span class="font-semibold" id="alertThreshold">5 people</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Cooldown:</span>
+                            <span class="font-semibold" id="alertCooldown">5 minutes</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Recipients:</span>
+                            <span class="font-semibold" id="alertRecipients">0</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Alerts Sent:</span>
+                            <span class="font-semibold" id="alertCount">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Alert Types -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Alert Status</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center justify-between">
+                            <span>Threshold Mode:</span>
+                            <span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800" id="thresholdMode">Crossing Only</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>Current Status:</span>
+                            <span class="px-2 py-1 rounded text-xs" id="currentThresholdStatus">Below Limit</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>Last Crossing:</span>
+                            <span class="font-semibold text-xs" id="lastCrossing">None</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span>Last Alert:</span>
+                            <span class="font-semibold text-xs" id="lastAlertTime">Never</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        // Update entry count from ThingSpeak
+        function updateEntryCount() {
+            fetch('/api/entry_count')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('entryCount').textContent = data.entry_count;
+                    document.getElementById('totalEntries').textContent = data.entry_count;
+                    document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+                    updateOccupancyRate();
+                })
+                .catch(error => {
+                    console.error('Error fetching entry count:', error);
+                });
+        }
+
+        // Update people count from camera
+        function updatePeopleCount() {
+            fetch('/api/people_count')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('peopleCount').textContent = data.people_count;
+                    document.getElementById('livePeopleCount').textContent = data.people_count;
+                    document.getElementById('currentOccupancy').textContent = data.people_count;
+                    updateOccupancyRate();
+                })
+                .catch(error => {
+                    console.error('Error fetching people count:', error);
+                });
+        }
+
+        // Update detailed detection information
+        function updateDetectionDetails() {
+            fetch('/api/detection_details')
+                .then(response => response.json())
+                .then(data => {
+                    // Update detection methods
+                    const model = data.model || 'YOLO';
+                    document.getElementById('detectionMethods').textContent = model;
+                    document.getElementById('feedDetectionMethods').textContent = model;
+                    
+                    // Update confidence with color coding
+                    const confidence = data.confidence;
+                    const confidenceElement = document.getElementById('detectionConfidence');
+                    const feedConfidenceElement = document.getElementById('feedConfidence');
+                    
+                    // Remove existing color classes
+                    confidenceElement.className = 'font-semibold';
+                    feedConfidenceElement.className = 'font-semibold';
+                    
+                    // Add appropriate color based on confidence
+                    if (confidence === 'HIGH') {
+                        confidenceElement.classList.add('text-green-600');
+                        feedConfidenceElement.classList.add('text-green-600');
+                    } else if (confidence === 'MEDIUM') {
+                        confidenceElement.classList.add('text-yellow-600');
+                        feedConfidenceElement.classList.add('text-yellow-600');
+                    } else {
+                        confidenceElement.classList.add('text-red-600');
+                        feedConfidenceElement.classList.add('text-red-600');
+                    }
+                    
+                    confidenceElement.textContent = confidence;
+                    feedConfidenceElement.textContent = confidence;
+                    
+                    // Update detection history
+                    const history = data.detection_history.slice(-5); // Show last 5
+                    document.getElementById('detectionHistory').textContent = '[' + history.join(',') + ']';
+                    
+                    // Update YOLO-specific information
+                    document.getElementById('avgConfidence').textContent = data.avg_confidence.toFixed(2);
+                    document.getElementById('detectionCount').textContent = data.detection_count;
+                })
+                .catch(error => {
+                    console.error('Error fetching detection details:', error);
+                });
+        }
+
+        // Update email alert status
+        function updateEmailStatus() {
+            fetch('/api/email_status')
+                .then(response => response.json())
+                .then(data => {
+                    // Update email indicator
+                    const emailIndicator = document.getElementById('emailIndicator');
+                    const emailStatus = document.getElementById('emailStatus');
+                    
+                    if (data.email_enabled) {
+                        emailIndicator.classList.remove('bg-red-500');
+                        emailIndicator.classList.add('bg-iot-green');
+                        emailStatus.textContent = 'Active';
+                    } else {
+                        emailIndicator.classList.remove('bg-iot-green');
+                        emailIndicator.classList.add('bg-red-500');
+                        emailStatus.textContent = 'Disabled';
+                    }
+                    
+                    // Update alert settings
+                    document.getElementById('alertThreshold').textContent = data.threshold + ' people';
+                    document.getElementById('alertCooldown').textContent = data.cooldown_minutes + ' minutes';
+                    document.getElementById('alertRecipients').textContent = data.recipients;
+                    document.getElementById('alertCount').textContent = data.alert_count;
+                    
+                    // Update threshold crossing status
+                    const thresholdMode = document.getElementById('thresholdMode');
+                    const currentThresholdStatus = document.getElementById('currentThresholdStatus');
+                    const lastCrossing = document.getElementById('lastCrossing');
+                    
+                    // Threshold mode
+                    thresholdMode.textContent = data.threshold_crossing_mode ? 'Crossing Only' : 'All Events';
+                    thresholdMode.className = data.threshold_crossing_mode ? 'px-2 py-1 rounded text-xs bg-blue-100 text-blue-800' : 'px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800';
+                    
+                    // Current threshold status
+                    if (data.threshold_status.currently_above) {
+                        currentThresholdStatus.textContent = 'Above Limit';
+                        currentThresholdStatus.className = 'px-2 py-1 rounded text-xs bg-red-100 text-red-800';
+                    } else {
+                        currentThresholdStatus.textContent = 'Below Limit';
+                        currentThresholdStatus.className = 'px-2 py-1 rounded text-xs bg-green-100 text-green-800';
+                    }
+                    
+                    // Last crossing
+                    if (data.threshold_status.crossed_up) {
+                        lastCrossing.textContent = 'Exceeded';
+                        lastCrossing.className = 'font-semibold text-xs text-red-600';
+                    } else if (data.threshold_status.crossed_down) {
+                        lastCrossing.textContent = 'Cleared';
+                        lastCrossing.className = 'font-semibold text-xs text-green-600';
+                    } else {
+                        lastCrossing.textContent = 'None';
+                        lastCrossing.className = 'font-semibold text-xs text-gray-600';
+                    }
+                    
+                    // Update last alert time
+                    if (data.last_alert_time) {
+                        const lastAlert = new Date(data.last_alert_time);
+                        document.getElementById('lastAlertTime').textContent = lastAlert.toLocaleString();
+                    } else {
+                        document.getElementById('lastAlertTime').textContent = 'Never';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching email status:', error);
+                });
+        }
+
+
+        // Calculate occupancy rate
+        function updateOccupancyRate() {
+            const totalEntries = parseInt(document.getElementById('totalEntries').textContent) || 0;
+            const currentOccupancy = parseInt(document.getElementById('currentOccupancy').textContent) || 0;
+            
+            if (totalEntries > 0) {
+                const rate = Math.round((currentOccupancy / totalEntries) * 100);
+                document.getElementById('occupancyRate').textContent = rate + '%';
+            } else {
+                document.getElementById('occupancyRate').textContent = '0%';
+            }
+        }
+
+        // Manual refresh function
+        function refreshEntryCount() {
+            updateEntryCount();
+        }
+
+        // Camera error handling
+        function handleCameraError() {
+            console.log('Camera feed error detected');
+            document.getElementById('cameraError').classList.remove('hidden');
+            document.getElementById('cameraIndicator').classList.remove('bg-iot-green');
+            document.getElementById('cameraIndicator').classList.add('bg-red-500');
+            document.getElementById('cameraStatusText').textContent = 'Camera Error';
+            document.getElementById('cameraStatus').textContent = 'Error';
+        }
+
+        // Camera load success
+        function handleCameraLoad() {
+            console.log('Camera feed loaded successfully');
+            document.getElementById('cameraError').classList.add('hidden');
+            document.getElementById('cameraIndicator').classList.remove('bg-red-500');
+            document.getElementById('cameraIndicator').classList.add('bg-iot-green');
+            document.getElementById('cameraStatusText').textContent = 'Camera Active';
+            document.getElementById('cameraStatus').textContent = 'Active';
+        }
+
+        // Retry camera connection
+        function retryCamera() {
+            const cameraFeed = document.getElementById('cameraFeed');
+            const currentSrc = cameraFeed.src;
+            cameraFeed.src = '';
+            setTimeout(() => {
+                cameraFeed.src = currentSrc + '?t=' + new Date().getTime();
+            }, 100);
+        }
+
+        // Check camera status periodically
+        function checkCameraStatus() {
+            const cameraFeed = document.getElementById('cameraFeed');
+            if (cameraFeed.complete && cameraFeed.naturalWidth === 0) {
+                handleCameraError();
+            }
+        }
+
+        // Auto-refresh intervals (matching config.py)
+        setInterval(updateEntryCount, 5000);  // ThingSpeak update interval
+        setInterval(updatePeopleCount, 1000); // People count update interval
+        setInterval(updateDetectionDetails, 2000); // Detection details update interval
+        setInterval(updateEmailStatus, 5000); // Email status update interval
+        setInterval(checkCameraStatus, 3000); // Camera status check
+
+        // Initial load
+        updateEntryCount();
+        updatePeopleCount();
+        updateDetectionDetails();
+        updateEmailStatus();
+        
+        // Check if Tailwind CSS loaded properly
+        if (typeof tailwind !== 'undefined') {
+            console.log('Tailwind CSS loaded successfully');
+        } else {
+            console.warn('Tailwind CSS may not have loaded properly');
+        }
+    </script>
+</body>
+</html>
